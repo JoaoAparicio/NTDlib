@@ -19,10 +19,6 @@ list_lows = []
 list_closes = []
 list_volumes = []
 for n,i in enumerate(r):
-    counter += 1
-    #print("counter: {}".format(counter))
-    #data.append(i)
-    #data[n] = i
     list_timestamps.append(i[0])
     list_opens.append(i[1])
     list_highs.append(i[2])
