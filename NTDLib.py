@@ -1,3 +1,5 @@
+import struct, datetime
+
 class NTDFileReader():
     def __init__(self, s):
         with open(s, "rb") as f:
@@ -19,7 +21,7 @@ class NTDFileReader():
         self.low = struct.unpack("<d", low_bytes)[0]
         self.close = struct.unpack("<d", close_bytes)[0]
         self.volume = struct.unpack("<Q", volume_bytes)[0]
-        ticks = struct.unpack("<Q", timestamp)[0]
+        ticks = struct.unpack("<Q", timestamp_bytes)[0]
         self.timestamp = datetime.datetime(1,1,1,1) + datetime.timedelta(microseconds = ticks/10)
         
         self.cursor = 64
