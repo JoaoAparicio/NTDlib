@@ -29,7 +29,6 @@ for n,i in enumerate(r):
     list_lows.append(i[3])
     list_closes.append(i[4])
     list_volumes.append(i[5])
-#print(counter)
 
 df = pd.DataFrame({'timestamp': list_timestamps,
                    'open': list_opens,
