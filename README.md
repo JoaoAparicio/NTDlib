@@ -35,3 +35,6 @@ df = pd.DataFrame({'timestamp': list_timestamps,
                   }).set_index("timestamp")
 df = df[['open', 'high', 'low', 'close', 'volume']]
 ```
+
+# TODO
+- Nice consistency check: check that the `record_count` variable matches the number of records that can be read before throwing `StopIteration`
