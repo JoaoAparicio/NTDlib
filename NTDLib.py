@@ -1,4 +1,5 @@
 import struct, datetime
+import pandas as pd
 
 class NTDFileReader():
     def __init__(self, s):
@@ -215,3 +216,13 @@ class NTDFileReader():
             
             return (self.timestamp, self.open, self.high, self.low, self.close, self.volume)
 
+
+def read_ntd(filepath):
+    reader = NTDFileReader(filepath)
+    data_temp = [0]*reader.record_count
+
+    for n,i in enumerate(reader):
+        data_temp[n] = i
+
+    df = pd.DataFrame(data_temp, columns=['timestamp','open','high','low','close','volume']).set_index("timestamp")
+    return df[['open', 'high', 'low', 'close', 'volume']]
