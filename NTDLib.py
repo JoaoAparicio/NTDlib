@@ -181,7 +181,7 @@ class NTDFileReader():
     def __next__(self):
         if self.first:
             self.first = False
-            return (self.timestamp, self.open, 0, 0, 0, self.volume)
+            return (self.timestamp, self.open, self.high, self.low, self.close, self.volume)
         else:
             try:
                 mask = self.data[self.cursor]
