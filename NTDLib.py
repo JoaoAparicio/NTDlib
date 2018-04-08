@@ -1,7 +1,7 @@
-import struct, datetime
+import struct, datetime, re
 import pandas as pd
 
-class NTDFileReaderMin():
+class NTDFileReaderMinute():
     def __init__(self, s):
         with open(s, "rb") as f:
             self.data = f.read()
@@ -377,11 +377,19 @@ class NTDFileReaderTick():
 
             return (self.timestamp, self.price, self.volume)
 
-def read_ntd(filepath, kind):
-    assert kind in ("min", "tick")
+def read_ntd(filepath, kind=None):
+    FILENAME_REGEX = r"Ninjatrader 7/db/(?P<kind>(minute)|(tick))/(?P<symbol>.*?) (?P<month>\d\d)-(?P<year>\d\d)"
+    # if kind is none, try auto-detect from filepath
+    if kind is None:
+        m = re.search(FILENAME_REGEX, filepath)
+        if m:
+            kind = m.groupdict()['kind']
 
-    if kind == "min":
-        reader = NTDFileReaderMin(filepath)
+    if kind not in ("minute", "tick"):
+        raise ValueError("kind argument must be either 'minute' or 'tick', received '{}'".format(kind))
+
+    if kind == "minute":
+        reader = NTDFileReaderMinute(filepath)
     elif kind == "tick":
         reader = NTDFileReaderTick(filepath)
 
@@ -389,7 +397,7 @@ def read_ntd(filepath, kind):
     for n,i in enumerate(reader):
         data_temp[n] = i
 
-    if kind == "min":
+    if kind == "minute":
         df = pd.DataFrame(data_temp, columns=['timestamp','open','high','low','close','volume']).set_index("timestamp")
         return df[['open', 'high', 'low', 'close', 'volume']]
     elif kind == "tick":
