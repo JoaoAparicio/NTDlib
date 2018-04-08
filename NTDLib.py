@@ -1,7 +1,7 @@
 import struct, datetime
 import pandas as pd
 
-class NTDFileReader():
+class NTDFileReaderMin():
     def __init__(self, s):
         with open(s, "rb") as f:
             self.data = f.read()
@@ -216,13 +216,182 @@ class NTDFileReader():
             
             return (self.timestamp, self.open, self.high, self.low, self.close, self.volume)
 
+class NTDFileReaderTick():
+    def __init__(self, s):
+        with open(s, "rb") as f:
+            self.data = f.read()
 
-def read_ntd(filepath):
-    reader = NTDFileReader(filepath)
+        multiplier_bytes = self.data[0:8]
+        record_count_bytes = self.data[12:16]
+        price_bytes = self.data[16:24]
+        _ = self.data[24:32]
+        _ = self.data[32:40]
+        _ = self.data[40:48]
+        timestamp_bytes = self.data[48:56]
+        volume_bytes = self.data[56:64]
+
+        self.multiplier = - struct.unpack("<d", multiplier_bytes)[0]
+        self.record_count = struct.unpack("I", record_count_bytes)[0]
+        self.price = struct.unpack("<d", price_bytes)[0]
+        self.volume = struct.unpack("<Q", volume_bytes)[0]
+        ticks = struct.unpack("<Q", timestamp_bytes)[0]
+        self.timestamp = datetime.datetime(1,1,1,1) + datetime.timedelta(microseconds = ticks/10)
+
+        self.cursor = 64
+        self.first = True
+
+    def __iter__(self):
+        return self
+
+    def decode_volume_mask(self, mask_volume):
+        """ returns tuple (nr_bytes_volume, multiplier_volume) """
+        if mask_volume == 1:
+            nr_bytes_volume = 1
+            multiplier_volume = 1
+        elif mask_volume == 6:
+            nr_bytes_volume = 2
+            multiplier_volume = 1
+        elif mask_volume == 7:
+            nr_bytes_volume = 4
+            multiplier_volume = 1
+        elif mask_volume == 2:
+            nr_bytes_volume = 8
+            multiplier_volume = 1
+        elif mask_volume == 3:
+            nr_bytes_volume = 1
+            multiplier_volume = 100
+        elif mask_volume == 4:
+            nr_bytes_volume = 1
+            multiplier_volume = 500
+        elif mask_volume == 5:
+            nr_bytes_volume = 1
+            multiplier_volume = 1000
+        elif mask_volume == 0: ## not sure about this one
+            nr_bytes_volume = 0
+            multiplier_volume = 1000
+        else:
+            raise Exception("unexpected mask_volume: {}".format(mask_volume))
+        return (nr_bytes_volume, multiplier_volume)
+
+    def decode_price_mask(self, mask_price):
+        if mask_price == 0:
+            nr_bytes_price = 0
+        elif mask_price == 1:
+            nr_bytes_price = 1
+        elif mask_price == 2:
+            nr_bytes_price = 2
+        elif mask_price == 3:
+            nr_bytes_price = 4
+        else:
+            raise Exception("unexpected mask_price: {}".format(mask_price))
+        return nr_bytes_price
+
+    def decode_timestamp_data(self, timestamp_data):
+        if timestamp_data == 0:
+            time_delta = 1
+        else:
+            time_delta = timestamp_data
+        return time_delta
+
+    def decode_standard_mask(self, msk):
+        if msk == 0:
+            nr_bytes = 0
+        elif msk == 1:
+            nr_bytes = 1
+        elif msk == 2:
+            nr_bytes = 2
+        elif msk == 3:
+            nr_bytes = 4
+        else:
+            raise Exception("unexpected mask: {}".format(msk))
+        return nr_bytes
+
+    def get_n_bytes(self, n):
+        data = self.data[self.cursor: self.cursor+n]
+        self.cursor += n
+        return data
+
+    def read_price_delta(self, mask):
+        price_mask = (mask & 12) >> 2
+        nr_bytes_price = self.decode_standard_mask(price_mask)
+        if nr_bytes_price == 0:
+            return 0
+
+        price_delta = int.from_bytes(self.get_n_bytes(nr_bytes_price), "big")
+        if nr_bytes_price == 1:
+            price_delta -= 0x80
+        elif nr_bytes_price == 2:
+            price_delta -= 0x4000
+        elif nr_bytes_price == 3:
+            price_delta -= 0x40000000
+        else:
+            raise Exception("lala")
+        return price_delta
+
+    def read_price(self, mask):
+        price_delta = self.read_price_delta(mask)
+        self.price += self.multiplier * price_delta
+
+    def read_volume(self, mask):
+        mask_volume = (mask & 112) >> 4
+        if mask_volume == 0:
+            self.volume = 0
+            return
+
+        (nr_bytes_volume, multiplier) = self.decode_volume_mask(mask_volume)
+
+        volume = int.from_bytes(self.get_n_bytes(nr_bytes_volume), "big")
+        volume *= multiplier
+        self.volume = volume
+
+    def read_timestamp(self, mask):
+        nr_bytes_time = (mask & 3)
+        if nr_bytes_time == 0:
+            delta_time = 1
+        else:
+            delta_time = int.from_bytes(self.get_n_bytes(nr_bytes_time), "big")
+        self.timestamp += datetime.timedelta(seconds = delta_time)
+
+    def __next__(self):
+        if self.first:
+            self.first = False
+            return (self.timestamp, self.price, self.volume)
+        else:
+            try:
+                mask = self.data[self.cursor]
+                self.cursor += 1
+            except IndexError:
+                raise StopIteration
+
+            mask_volume = (mask & 112) >> 4 # 112 = 01110000
+            mask_price = (mask & 12) >> 2 # 12 = 00001100
+            mask_time = mask & 3 # 3 = 00000011
+
+            nr_bytes_time = mask_time
+            (nr_bytes_volume, multiplier_volume) = self.decode_volume_mask(mask_volume)
+            nr_bytes_price = self.decode_standard_mask(mask_price)
+
+            self.read_timestamp(mask)
+            self.read_price(mask)
+            self.read_volume(mask)
+
+            return (self.timestamp, self.price, self.volume)
+
+def read_ntd(filepath, kind):
+    assert kind in ("min", "tick")
+
+    if kind == "min":
+        reader = NTDFileReaderMin(filepath)
+    elif kind == "tick":
+        reader = NTDFileReaderTick(filepath)
+
     data_temp = [0]*reader.record_count
-
     for n,i in enumerate(reader):
         data_temp[n] = i
 
-    df = pd.DataFrame(data_temp, columns=['timestamp','open','high','low','close','volume']).set_index("timestamp")
-    return df[['open', 'high', 'low', 'close', 'volume']]
+    if kind == "min":
+        df = pd.DataFrame(data_temp, columns=['timestamp','open','high','low','close','volume']).set_index("timestamp")
+        return df[['open', 'high', 'low', 'close', 'volume']]
+    elif kind == "tick":
+        df = pd.DataFrame(data_temp, columns=['timestamp','price','volume']).set_index("timestamp")
+        return df[['price', 'volume']]
