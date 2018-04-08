@@ -347,7 +347,7 @@ class NTDFileReaderTick():
     def read_timestamp(self, mask):
         nr_bytes_time = (mask & 3)
         if nr_bytes_time == 0:
-            delta_time = 1
+            delta_time = 0
         else:
             delta_time = int.from_bytes(self.get_n_bytes(nr_bytes_time), "big")
         self.timestamp += datetime.timedelta(seconds = delta_time)
