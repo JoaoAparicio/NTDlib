@@ -110,7 +110,7 @@ class NTDFileReaderMinute():
             open_delta -= 0x80
         elif nr_bytes_open == 2:
             open_delta -= 0x4000
-        elif nr_bytes_open == 3:
+        elif nr_bytes_open == 4:
             open_delta -= 0x40000000
         else:
             raise Exception("lala")
@@ -322,7 +322,7 @@ class NTDFileReaderTick():
             price_delta -= 0x80
         elif nr_bytes_price == 2:
             price_delta -= 0x4000
-        elif nr_bytes_price == 3:
+        elif nr_bytes_price == 4:
             price_delta -= 0x40000000
         else:
             raise Exception("lala")
