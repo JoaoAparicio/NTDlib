@@ -216,6 +216,29 @@ class NTDFileReaderMinute():
             
             return (self.timestamp, self.open, self.high, self.low, self.close, self.volume)
 
+
+class NTDFileHeader():
+    def __init__(self, s):
+        with open(s, "rb") as f:
+            self.data = f.read(64)
+
+        multiplier_bytes = self.data[0:8]
+        record_count_bytes = self.data[12:16]
+        price_bytes = self.data[16:24]
+        _ = self.data[24:32]
+        _ = self.data[32:40]
+        _ = self.data[40:48]
+        timestamp_bytes = self.data[48:56]
+        volume_bytes = self.data[56:64]
+
+        self.multiplier = - struct.unpack("<d", multiplier_bytes)[0]
+        self.record_count = struct.unpack("I", record_count_bytes)[0]
+        self.price = struct.unpack("<d", price_bytes)[0]
+        self.volume = struct.unpack("<Q", volume_bytes)[0]
+        ticks = struct.unpack("<Q", timestamp_bytes)[0]
+        self.timestamp = datetime.datetime(1,1,1,1) + datetime.timedelta(microseconds = ticks/10)
+
+
 class NTDFileReaderTick():
     def __init__(self, s):
         with open(s, "rb") as f:
